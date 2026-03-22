@@ -37,9 +37,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\..\..\..\..\..\Downloads\grass.jpg">
-      <Filter>Source Files</Filter>
-    </Image>
     <Image Include="..\..\..\..\..\..\..\Downloads\sky.jpg">
       <Filter>Source Files</Filter>
     </Image>
@@ -47,6 +44,18 @@
       <Filter>Source Files</Filter>
     </Image>
     <Image Include="..\..\..\..\..\..\..\Downloads\mountains.png">
+      <Filter>Source Files</Filter>
+    </Image>
+    <Image Include="..\..\..\..\..\..\..\Downloads\P1_Scena_Complet\horizon.jpg">
+      <Filter>Source Files</Filter>
+    </Image>
+    <Image Include="..\..\..\..\..\..\..\Downloads\P1_Scena_Complet\sky_top.jpg">
+      <Filter>Source Files</Filter>
+    </Image>
+    <Image Include="..\..\..\..\..\..\..\Downloads\grass.jpg">
+      <Filter>Source Files</Filter>
+    </Image>
+    <Image Include="..\..\..\..\..\..\..\Downloads\road.jpg">
       <Filter>Source Files</Filter>
     </Image>
   </ItemGroup>

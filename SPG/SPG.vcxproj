@@ -138,6 +138,9 @@
     <Image Include="..\..\..\..\..\..\..\Downloads\grass.jpg" />
     <Image Include="..\..\..\..\..\..\..\Downloads\mountains.jpg" />
     <Image Include="..\..\..\..\..\..\..\Downloads\mountains.png" />
+    <Image Include="..\..\..\..\..\..\..\Downloads\P1_Scena_Complet\horizon.jpg" />
+    <Image Include="..\..\..\..\..\..\..\Downloads\P1_Scena_Complet\sky_top.jpg" />
+    <Image Include="..\..\..\..\..\..\..\Downloads\road.jpg" />
     <Image Include="..\..\..\..\..\..\..\Downloads\sky.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

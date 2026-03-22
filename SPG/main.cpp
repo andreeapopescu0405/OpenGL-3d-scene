@@ -1,45 +1,85 @@
 ﻿#include <GL/freeglut.h>
 #include <cmath>
 #include <cstdlib>
+
 #include "textures.h"
 
+const float PI = 3.1415926535f;
+
+// ===================== CAMERA =====================
 static float camX = 0.0f;
-static float camY = 8.0f;
-static float camZ = 26.0f;
+static float camY = 18.0f;
+static float camZ = 55.0f;
 
-static float lookX = 0.0f;
-static float lookY = 3.5f;
-static float lookZ = -10.0f;
+static float yaw = -90.0f;   // stanga-dreapta
+static float pitch = -12.0f; // sus-jos
 
+static float dirX = 0.0f;
+static float dirY = 0.0f;
+static float dirZ = -1.0f;
+
+// ===================== STRUCTURI =====================
+struct LampPos {
+    float x, z;
+};
+
+LampPos lamps[] = {
+    { -18.0f,  18.0f },
+    {  18.0f,  18.0f },
+    { -18.0f, -38.0f },
+    {  18.0f, -38.0f }
+};
+
+const int lampCount = 4;
+
+
+// ===================== CAMERA =====================
+void updateCameraDirection()
+{
+    float yawRad = yaw * PI / 180.0f;
+    float pitchRad = pitch * PI / 180.0f;
+
+    dirX = cosf(yawRad) * cosf(pitchRad);
+    dirY = sinf(pitchRad);
+    dirZ = sinf(yawRad) * cosf(pitchRad);
+
+    float len = sqrtf(dirX * dirX + dirY * dirY + dirZ * dirZ);
+    if (len > 0.0001f) {
+        dirX /= len;
+        dirY /= len;
+        dirZ /= len;
+    }
+}
+
+// ===================== TEREN =====================
 float terrainHeight(float x, float z)
 {
     float h = 0.0f;
 
     float dx1 = x;
-    float dz1 = z + 12.0f;
+    float dz1 = z + 18.0f;
     float d1 = sqrtf(dx1 * dx1 + dz1 * dz1);
-    h += 3.2f * expf(-(d1 * d1) / 180.0f);
+    h += 3.0f * expf(-(d1 * d1) / 260.0f);
 
-    float dx2 = x + 16.0f;
-    float dz2 = z + 10.0f;
+    float dx2 = x + 22.0f;
+    float dz2 = z + 20.0f;
     float d2 = sqrtf(dx2 * dx2 + dz2 * dz2);
-    h += 1.6f * expf(-(d2 * d2) / 90.0f);
+    h += 2.0f * expf(-(d2 * d2) / 140.0f);
 
-    float dx3 = x - 15.0f;
-    float dz3 = z + 11.0f;
+    float dx3 = x - 20.0f;
+    float dz3 = z + 24.0f;
     float d3 = sqrtf(dx3 * dx3 + dz3 * dz3);
-    h += 1.8f * expf(-(d3 * d3) / 100.0f);
+    h += 1.9f * expf(-(d3 * d3) / 150.0f);
 
-    h += 0.18f * sinf(x * 0.22f) * cosf(z * 0.20f);
-
- 
+    h += 0.25f * sinf(x * 0.18f) * cosf(z * 0.16f);
+    h += 0.15f * sinf((x + z) * 0.12f);
 
     return h;
 }
 
 void computeNormal(float x, float z, float& nx, float& ny, float& nz)
 {
-    float eps = 0.2f;
+    float eps = 0.3f;
 
     float hL = terrainHeight(x - eps, z);
     float hR = terrainHeight(x + eps, z);
@@ -58,12 +98,13 @@ void computeNormal(float x, float z, float& nx, float& ny, float& nz)
     }
 }
 
+// ===================== LUMINA / FOG =====================
 void setupLighting()
 {
-    GLfloat lightPos[] = { 25.0f, 35.0f, 20.0f, 1.0f };
-    GLfloat ambient[] = { 0.35f, 0.35f, 0.35f, 1.0f };
-    GLfloat diffuse[] = { 0.90f, 0.90f, 0.85f, 1.0f };
-    GLfloat specular[] = { 0.20f, 0.20f, 0.20f, 1.0f };
+    GLfloat lightPos[] = { 30.0f, 45.0f, 20.0f, 1.0f };
+    GLfloat ambient[] = { 0.45f, 0.45f, 0.45f, 1.0f };
+    GLfloat diffuse[] = { 0.95f, 0.95f, 0.90f, 1.0f };
+    GLfloat specular[] = { 0.25f, 0.25f, 0.25f, 1.0f };
 
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
     glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
@@ -71,52 +112,74 @@ void setupLighting()
     glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
 }
 
+void setupFog()
+{
+    GLfloat fogColor[] = { 0.60f, 0.82f, 1.00f, 1.0f };
+    glEnable(GL_FOG);
+    glFogi(GL_FOG_MODE, GL_LINEAR);
+    glFogfv(GL_FOG_COLOR, fogColor);
+    glFogf(GL_FOG_START, 150.0f);
+    glFogf(GL_FOG_END, 280.0f);
+}
+
+// ===================== CER / MUNTI =====================
 void drawSkybox()
 {
     if (!skyTexture) return;
 
     glDisable(GL_LIGHTING);
     glDepthMask(GL_FALSE);
+    glDisable(GL_FOG);
 
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, skyTexture);
     glColor3f(1.0f, 1.0f, 1.0f);
-    float s = 300.0f;
+
+    const float s = 260.0f;
+    const float yBottom = -120.0f;
+    const float yTop = 140.0f;
 
     glPushMatrix();
     glTranslatef(camX, 0.0f, camZ);
 
-    // perete spate
+    // spate
     glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex3f(-s, -20.0f, -s);
-    glTexCoord2f(1, 0); glVertex3f(s, -20.0f, -s);
-    glTexCoord2f(1, 1); glVertex3f(s, 140.0f, -s);
-    glTexCoord2f(0, 1); glVertex3f(-s, 140.0f, -s);
+    glTexCoord2f(0, 0); glVertex3f(-s, yBottom, -s);
+    glTexCoord2f(1, 0); glVertex3f(s, yBottom, -s);
+    glTexCoord2f(1, 1); glVertex3f(s, yTop, -s);
+    glTexCoord2f(0, 1); glVertex3f(-s, yTop, -s);
     glEnd();
 
     // stanga
     glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex3f(-s, -20.0f, -s);
-    glTexCoord2f(1, 0); glVertex3f(-s, -20.0f, s);
-    glTexCoord2f(1, 1); glVertex3f(-s, 140.0f, s);
-    glTexCoord2f(0, 1); glVertex3f(-s, 140.0f, -s);
+    glTexCoord2f(0, 0); glVertex3f(-s, yBottom, -s);
+    glTexCoord2f(1, 0); glVertex3f(-s, yBottom, s);
+    glTexCoord2f(1, 1); glVertex3f(-s, yTop, s);
+    glTexCoord2f(0, 1); glVertex3f(-s, yTop, -s);
     glEnd();
 
     // dreapta
     glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex3f(s, -20.0f, s);
-    glTexCoord2f(1, 0); glVertex3f(s, -20.0f, -s);
-    glTexCoord2f(1, 1); glVertex3f(s, 140.0f, -s);
-    glTexCoord2f(0, 1); glVertex3f(s, 140.0f, s);
+    glTexCoord2f(0, 0); glVertex3f(s, yBottom, s);
+    glTexCoord2f(1, 0); glVertex3f(s, yBottom, -s);
+    glTexCoord2f(1, 1); glVertex3f(s, yTop, -s);
+    glTexCoord2f(0, 1); glVertex3f(s, yTop, s);
     glEnd();
 
-   
+    // sus
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex3f(-s, yTop, -s);
+    glTexCoord2f(1, 0); glVertex3f(s, yTop, -s);
+    glTexCoord2f(1, 1); glVertex3f(s, yTop, s);
+    glTexCoord2f(0, 1); glVertex3f(-s, yTop, s);
+    glEnd();
 
     glPopMatrix();
 
     glDisable(GL_TEXTURE_2D);
     glDepthMask(GL_TRUE);
     glEnable(GL_LIGHTING);
+    glEnable(GL_FOG);
 }
 
 void drawMountains()
@@ -133,31 +196,22 @@ void drawMountains()
     glEnable(GL_ALPHA_TEST);
     glAlphaFunc(GL_GREATER, 0.05f);
 
-    // putin estompati, sa para mai departati
-    glColor4f(0.92f, 0.92f, 0.92f, 0.78f);
+    glColor4f(1.0f, 1.0f, 1.0f, 0.92f);
 
-    const int segments = 7;
-    const float totalWidth = 220.0f;
+    const int segments = 9;
+    const float totalWidth = 300.0f;
     const float segWidth = totalWidth / segments;
-
     const float leftStart = -totalWidth / 2.0f;
-
-    // coborati mai jos
-    const float bottomY = -4.0f;
-    const float topY = 14.5f;
-
-    // mai departe in spate
-    const float z = -95.0f;
+    const float bottomY = -8.0f;
+    const float topY = 26.0f;
+    const float z = -150.0f;
 
     for (int i = 0; i < segments; i++) {
         float x1 = leftStart + i * segWidth;
         float x2 = x1 + segWidth;
-
-        // alternam textura normal / oglindit
         bool flip = (i % 2 == 1);
 
         glBegin(GL_QUADS);
-
         if (!flip) {
             glTexCoord2f(0.0f, 0.0f); glVertex3f(x1, bottomY, z);
             glTexCoord2f(1.0f, 0.0f); glVertex3f(x2, bottomY, z);
@@ -170,7 +224,6 @@ void drawMountains()
             glTexCoord2f(0.0f, 1.0f); glVertex3f(x2, topY, z);
             glTexCoord2f(1.0f, 1.0f); glVertex3f(x1, topY, z);
         }
-
         glEnd();
     }
 
@@ -180,6 +233,7 @@ void drawMountains()
     glEnable(GL_LIGHTING);
 }
 
+// ===================== TEREN / DRUM =====================
 void drawTerrain()
 {
     if (grassTexture) {
@@ -192,9 +246,9 @@ void drawTerrain()
         glColor3f(0.30f, 0.68f, 0.28f);
     }
 
-    float minX = -60.0f, maxX = 60.0f;
-    float minZ = -60.0f, maxZ = 45.0f;
-    float step = 1.5f;
+    float minX = -300.0f, maxX = 300.0f;
+    float minZ = -300.0f, maxZ = 300.0f;
+    float step = 4.0f;
 
     for (float z = minZ; z < maxZ; z += step) {
         glBegin(GL_TRIANGLE_STRIP);
@@ -205,13 +259,13 @@ void drawTerrain()
             float y1 = terrainHeight(x, z);
             computeNormal(x, z, nx, ny, nz);
             glNormal3f(nx, ny, nz);
-            glTexCoord2f((x - minX) * 0.10f, (z - minZ) * 0.10f);
+            glTexCoord2f((x - minX) * 0.03f, (z - minZ) * 0.03f);
             glVertex3f(x, y1, z);
 
             float y2 = terrainHeight(x, z + step);
             computeNormal(x, z + step, nx, ny, nz);
             glNormal3f(nx, ny, nz);
-            glTexCoord2f((x - minX) * 0.10f, (z + step - minZ) * 0.10f);
+            glTexCoord2f((x - minX) * 0.03f, (z + step - minZ) * 0.03f);
             glVertex3f(x, y2, z + step);
         }
 
@@ -221,7 +275,307 @@ void drawTerrain()
     glDisable(GL_TEXTURE_2D);
 }
 
+void drawRoad()
+{
+    bool useTexture = (roadTexture != 0);
 
+    if (useTexture) {
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, roadTexture);
+        glColor3f(1.0f, 1.0f, 1.0f);
+    }
+    else {
+        glDisable(GL_TEXTURE_2D);
+        glColor3f(0.16f, 0.16f, 0.16f);
+    }
+
+    const int slices = 240;
+    const float outerA = 36.0f;
+    const float outerB = 24.0f;
+    const float innerA = 26.0f;
+    const float innerB = 16.0f;
+    const float centerZ = -10.0f;
+
+    glBegin(GL_TRIANGLE_STRIP);
+    for (int i = 0; i <= slices; i++) {
+        float t = 2.0f * PI * i / slices;
+        float ct = cosf(t);
+        float st = sinf(t);
+
+        float xOuter = outerA * ct;
+        float zOuter = outerB * st + centerZ;
+
+        float xInner = innerA * ct;
+        float zInner = innerB * st + centerZ;
+
+        float yOuter = terrainHeight(xOuter, zOuter) + 0.25f;
+        float yInner = terrainHeight(xInner, zInner) + 0.25f;
+
+        glNormal3f(0.0f, 1.0f, 0.0f);
+
+        if (useTexture) {
+            glTexCoord2f(i * 0.18f, 1.0f); glVertex3f(xOuter, yOuter, zOuter);
+            glTexCoord2f(i * 0.18f, 0.0f); glVertex3f(xInner, yInner, zInner);
+        }
+        else {
+            glVertex3f(xOuter, yOuter, zOuter);
+            glVertex3f(xInner, yInner, zInner);
+        }
+    }
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+}
+
+// ===================== CLADIRI =====================
+void drawRoof(float w, float h, float d)
+{
+    glBegin(GL_TRIANGLES);
+    // fata
+    glNormal3f(0.0f, 0.7f, 0.7f);
+    glVertex3f(-w / 2, 0.0f, d / 2);
+    glVertex3f(w / 2, 0.0f, d / 2);
+    glVertex3f(0.0f, h, d / 2);
+
+    // spate
+    glNormal3f(0.0f, 0.7f, -0.7f);
+    glVertex3f(-w / 2, 0.0f, -d / 2);
+    glVertex3f(0.0f, h, -d / 2);
+    glVertex3f(w / 2, 0.0f, -d / 2);
+    glEnd();
+
+    glBegin(GL_QUADS);
+    // panta stanga
+    glNormal3f(-0.8f, 0.6f, 0.0f);
+    glVertex3f(-w / 2, 0.0f, -d / 2);
+    glVertex3f(-w / 2, 0.0f, d / 2);
+    glVertex3f(0.0f, h, d / 2);
+    glVertex3f(0.0f, h, -d / 2);
+
+    // panta dreapta
+    glNormal3f(0.8f, 0.6f, 0.0f);
+    glVertex3f(w / 2, 0.0f, d / 2);
+    glVertex3f(w / 2, 0.0f, -d / 2);
+    glVertex3f(0.0f, h, -d / 2);
+    glVertex3f(0.0f, h, d / 2);
+    glEnd();
+}
+
+void drawBuildingGeometry(float x, float z, float w, float h, float d)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y + h * 0.5f, z);
+    glScalef(w, h, d);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(x, y + h + 1.3f, z);
+    glScalef(w * 0.85f, 2.0f, d * 0.85f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(x, y + h + 2.3f, z);
+    drawRoof(w * 1.05f, 2.5f, d * 1.05f);
+    glPopMatrix();
+}
+
+void drawBuilding(float x, float z, float w, float h, float d)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, 0.0f, z);
+
+    glColor3f(0.90f, 0.82f, 0.65f);
+    glPushMatrix();
+    glTranslatef(0.0f, y + h * 0.5f, 0.0f);
+    glScalef(w, h, d);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(0.82f, 0.72f, 0.56f);
+    glPushMatrix();
+    glTranslatef(0.0f, y + h + 1.3f, 0.0f);
+    glScalef(w * 0.85f, 2.0f, d * 0.85f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(0.60f, 0.18f, 0.12f);
+    glPushMatrix();
+    glTranslatef(0.0f, y + h + 2.3f, 0.0f);
+    drawRoof(w * 1.05f, 2.5f, d * 1.05f);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+// ===================== COPACI =====================
+void drawTreeGeometry(float x, float z)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y, z);
+
+    glPushMatrix();
+    glTranslatef(0.0f, 1.5f, 0.0f);
+    glScalef(0.5f, 3.0f, 0.5f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.0f, 3.4f, 0.0f);
+    glutSolidSphere(1.4f, 16, 16);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.0f, 4.5f, 0.0f);
+    glutSolidSphere(1.0f, 16, 16);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+void drawTree(float x, float z)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y, z);
+
+    glColor3f(0.45f, 0.28f, 0.10f);
+    glPushMatrix();
+    glTranslatef(0.0f, 1.5f, 0.0f);
+    glScalef(0.5f, 3.0f, 0.5f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(0.10f, 0.55f, 0.15f);
+    glPushMatrix();
+    glTranslatef(0.0f, 3.4f, 0.0f);
+    glutSolidSphere(1.4f, 16, 16);
+    glPopMatrix();
+
+    glColor3f(0.14f, 0.65f, 0.20f);
+    glPushMatrix();
+    glTranslatef(0.0f, 4.5f, 0.0f);
+    glutSolidSphere(1.0f, 16, 16);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+// ===================== STALPI =====================
+void drawLamp(float x, float z)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y, z);
+
+    glColor3f(0.25f, 0.25f, 0.25f);
+    glPushMatrix();
+    glTranslatef(0.0f, 3.5f, 0.0f);
+    glScalef(0.3f, 7.0f, 0.3f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glColor3f(0.85f, 0.85f, 0.65f);
+    glPushMatrix();
+    glTranslatef(0.0f, 7.3f, 0.0f);
+    glutSolidSphere(0.55f, 12, 12);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+// ===================== OBIECTE =====================
+void drawStaticObjects()
+{
+    // cladiri
+    drawBuilding(-48.0f, 18.0f, 7.0f, 11.0f, 7.0f);
+    drawBuilding(-56.0f, 2.0f, 8.0f, 13.0f, 8.0f);
+    drawBuilding(48.0f, 16.0f, 7.0f, 10.0f, 7.0f);
+    drawBuilding(56.0f, 0.0f, 8.0f, 14.0f, 8.0f);
+
+    // copaci
+    drawTree(-70.0f, -10.0f);
+    drawTree(-68.0f, 10.0f);
+    drawTree(-60.0f, 28.0f);
+    drawTree(-42.0f, -24.0f);
+
+    drawTree(70.0f, -10.0f);
+    drawTree(68.0f, 10.0f);
+    drawTree(60.0f, 28.0f);
+    drawTree(42.0f, -24.0f);
+
+    // stalpi
+    for (int i = 0; i < lampCount; i++) {
+        drawLamp(lamps[i].x, lamps[i].z);
+    }
+}
+
+// ===================== UMBRE =====================
+void drawSimpleShadowCircle(float x, float z, float radius)
+{
+    float y = terrainHeight(x, z) + 0.02f;
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glColor4f(0.0f, 0.0f, 0.0f, 0.25f);
+
+    const int segments = 24;
+
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex3f(x, y, z);
+
+    for (int i = 0; i <= segments; i++) {
+        float t = 2.0f * PI * i / segments;
+        float px = x + cosf(t) * radius;
+        float pz = z + sinf(t) * radius;
+        float py = terrainHeight(px, pz) + 0.02f;
+        glVertex3f(px, py, pz);
+    }
+
+    glEnd();
+
+    glDisable(GL_BLEND);
+    glEnable(GL_LIGHTING);
+}
+
+void drawSimpleShadows()
+{
+    // umbre cladiri
+    drawSimpleShadowCircle(-48.0f, 18.0f, 5.5f);
+    drawSimpleShadowCircle(-56.0f, 2.0f, 6.0f);
+    drawSimpleShadowCircle(48.0f, 16.0f, 5.5f);
+    drawSimpleShadowCircle(56.0f, 0.0f, 6.0f);
+
+    // umbre copaci
+    drawSimpleShadowCircle(-70.0f, -10.0f, 2.0f);
+    drawSimpleShadowCircle(-68.0f, 10.0f, 2.0f);
+    drawSimpleShadowCircle(-60.0f, 28.0f, 2.0f);
+    drawSimpleShadowCircle(-42.0f, -24.0f, 2.0f);
+
+    drawSimpleShadowCircle(70.0f, -10.0f, 2.0f);
+    drawSimpleShadowCircle(68.0f, 10.0f, 2.0f);
+    drawSimpleShadowCircle(60.0f, 28.0f, 2.0f);
+    drawSimpleShadowCircle(42.0f, -24.0f, 2.0f);
+
+    // umbre stalpi
+    for (int i = 0; i < lampCount; i++) {
+        drawSimpleShadowCircle(lamps[i].x, lamps[i].z, 1.5f);
+    }
+}
+
+// ===================== RENDER =====================
 void display()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -229,9 +583,11 @@ void display()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    updateCameraDirection();
+
     gluLookAt(
         camX, camY, camZ,
-        lookX, lookY, lookZ,
+        camX + dirX, camY + dirY, camZ + dirZ,
         0.0f, 1.0f, 0.0f
     );
 
@@ -240,6 +596,9 @@ void display()
     drawSkybox();
     drawMountains();
     drawTerrain();
+    drawRoad();
+    drawSimpleShadows();
+    drawStaticObjects();
 
     glutSwapBuffers();
 }
@@ -257,8 +616,23 @@ void reshape(int w, int h)
     glMatrixMode(GL_MODELVIEW);
 }
 
+// ===================== CONTROL =====================
+/*W/S înainte / înapoi
+  A/D stânga / dreapta
+  Q/E sus / jos
+  J/L rotire stânga / dreapta
+  I/K privire sus / jos
+  ESC ieșire */
 void keyboard(unsigned char key, int, int)
 {
+    updateCameraDirection();
+
+    float moveSpeed = 1.5f;
+    float rotSpeed = 3.0f;
+
+    float rightX = -dirZ;
+    float rightZ = dirX;
+
     switch (key) {
     case 27:
         freeTextures();
@@ -266,57 +640,100 @@ void keyboard(unsigned char key, int, int)
         break;
 
     case 'w':
-        camZ -= 1.2f;
-        lookZ -= 1.2f;
+    case 'W':
+        camX += dirX * moveSpeed;
+        camY += dirY * moveSpeed;
+        camZ += dirZ * moveSpeed;
         break;
+
     case 's':
-        camZ += 1.2f;
-        lookZ += 1.2f;
+    case 'S':
+        camX -= dirX * moveSpeed;
+        camY -= dirY * moveSpeed;
+        camZ -= dirZ * moveSpeed;
         break;
+
     case 'a':
-        camX -= 1.2f;
-        lookX -= 1.2f;
+    case 'A':
+        camX -= rightX * moveSpeed;
+        camZ -= rightZ * moveSpeed;
         break;
+
     case 'd':
-        camX += 1.2f;
-        lookX += 1.2f;
+    case 'D':
+        camX += rightX * moveSpeed;
+        camZ += rightZ * moveSpeed;
         break;
+
     case 'q':
-        camY += 0.8f;
-        lookY += 0.8f;
+    case 'Q':
+        camY += moveSpeed;
         break;
+
     case 'e':
-        camY -= 0.8f;
-        lookY -= 0.8f;
+    case 'E':
+        camY -= moveSpeed;
+        if (camY < 2.0f) camY = 2.0f;
+        break;
+
+    case 'j':
+    case 'J':
+        yaw -= rotSpeed;
+        break;
+
+    case 'l':
+    case 'L':
+        yaw += rotSpeed;
+        break;
+
+    case 'i':
+    case 'I':
+        pitch += rotSpeed;
+        if (pitch > 89.0f) pitch = 89.0f;
+        break;
+
+    case 'k':
+    case 'K':
+        pitch -= rotSpeed;
+        if (pitch < -89.0f) pitch = -89.0f;
         break;
     }
 
     glutPostRedisplay();
 }
 
+// ===================== INIT =====================
 void init()
 {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_NORMALIZE);
-
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
 
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+
+    GLfloat matSpec[] = { 0.2f, 0.2f, 0.2f, 1.0f };
+    GLfloat matShininess[] = { 16.0f };
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, matSpec);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, matShininess);
+
     glShadeModel(GL_SMOOTH);
+    glDisable(GL_CULL_FACE);
 
     glClearColor(0.60f, 0.82f, 1.00f, 1.0f);
 
-  
-
+    setupFog();
     loadTextures();
 }
 
+// ===================== MAIN =====================
 int main(int argc, char** argv)
 {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(1200, 700);
-    glutCreateWindow("Scena 3D");
+    glutInitWindowSize(1280, 720);
+    glutCreateWindow("Scena 3D - Proiect");
 
     init();
 

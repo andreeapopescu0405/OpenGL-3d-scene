@@ -3,11 +3,11 @@
 
 #include <iostream>
 #include <algorithm>
-#include <cmath>
 
 GLuint grassTexture = 0;
 GLuint skyTexture = 0;
 GLuint mountainsTexture = 0;
+GLuint roadTexture = 0;
 
 static GLuint loadTexture2D(const char* path, bool flip = true)
 {
@@ -49,7 +49,6 @@ static GLuint loadTexture2D(const char* path, bool flip = true)
     return tex;
 }
 
-// Folositor daca muntele e PNG cu fundal deschis sau JPG cu fundal aproape alb/gri
 static GLuint loadMountainTextureWithAlphaKey(const char* path, bool flip = true)
 {
     int w, h, channels;
@@ -81,8 +80,8 @@ static GLuint loadMountainTextureWithAlphaKey(const char* path, bool flip = true
         int minv = std::min(r, std::min(g, b));
         int spread = maxv - minv;
 
-        // transparent pentru alb, gri foarte deschis sau albastru foarte deschis de fundal
-        if ((avg > 200 && spread < 35) || (b > 180 && r > 150 && g > 150))
+        // elimină fundalul foarte deschis/albăstrui din png
+        if ((avg > 210 && spread < 30) || (b > 190 && r > 170 && g > 170))
             rgba[i * 4 + 3] = 0;
         else
             rgba[i * 4 + 3] = 255;
@@ -92,8 +91,13 @@ static GLuint loadMountainTextureWithAlphaKey(const char* path, bool flip = true
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
 
+#ifdef GL_CLAMP_TO_EDGE
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+#else
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+#endif
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -114,12 +118,13 @@ void loadTextures()
 {
     grassTexture = loadTexture2D("grass.jpg", true);
     skyTexture = loadTexture2D("sky.jpg", true);
-
-    // daca ai PNG transparent sau aproape transparent
     mountainsTexture = loadMountainTextureWithAlphaKey("mountains.png", true);
+    roadTexture = loadTexture2D("road.jpg", true);
 
-    // daca muntele tau este JPG, foloseste:
-    // mountainsTexture = loadMountainTextureWithAlphaKey("mountains.jpg", true);
+    std::cout << "grassTexture: " << (grassTexture ? "OK" : "FAILED") << "\n";
+    std::cout << "skyTexture: " << (skyTexture ? "OK" : "FAILED") << "\n";
+    std::cout << "mountainsTexture: " << (mountainsTexture ? "OK" : "FAILED") << "\n";
+    std::cout << "roadTexture: " << (roadTexture ? "OK" : "FAILED") << "\n";
 }
 
 void freeTextures()
@@ -137,5 +142,10 @@ void freeTextures()
     if (mountainsTexture) {
         glDeleteTextures(1, &mountainsTexture);
         mountainsTexture = 0;
+    }
+
+    if (roadTexture) {
+        glDeleteTextures(1, &roadTexture);
+        roadTexture = 0;
     }
 }
