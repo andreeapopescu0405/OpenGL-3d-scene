@@ -1,10 +1,13 @@
 ﻿#include <GL/freeglut.h>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 
 #include "textures.h"
 
 const float PI = 3.1415926535f;
+const float walkerRadius = 0.8f;
+const float autoCarRadius = 2.0f;
 
 // ===================== CAMERA =====================
 static float camX = 0.0f;
@@ -31,6 +34,50 @@ LampPos lamps[] = {
 };
 
 const int lampCount = 4;
+
+struct BuildingDef {
+    float x, z;
+    float w, h, d;
+};
+
+BuildingDef buildings[] = {
+    { -48.0f, 18.0f, 7.0f, 11.0f, 7.0f },
+    { -56.0f,  2.0f, 8.0f, 13.0f, 8.0f },
+    {  48.0f, 16.0f, 7.0f, 10.0f, 7.0f },
+    {  56.0f,  0.0f, 8.0f, 14.0f, 8.0f }
+};
+
+const int buildingCount = 4;
+
+struct CarState {
+    float x, z;
+    float angle;
+    float radius;
+};
+
+CarState car = { 0.0f, 10.0f, 90.0f, 2.0f };
+
+// ===================== OBIECTE ALEATOARE =====================
+struct RandomWalker {
+    float x, z;
+    float angle;
+    float speed;
+    float changeDirTimer;
+};
+
+const int walkerCount = 3;
+
+RandomWalker walkers[walkerCount] = {
+    { -20.0f, 30.0f,  45.0f, 0.10f, 0.0f },
+    {  25.0f, 26.0f, 120.0f, 0.08f, 0.0f },
+    {   0.0f, 40.0f, 220.0f, 0.09f, 0.0f }
+};
+
+// ===================== OBIECT CU REGULĂ PRESTABILITĂ =====================
+float autoCarT = 0.0f;
+float autoCarX = 0.0f;
+float autoCarZ = 10.0f;
+float autoCarAngle = 0.0f;
 
 // ===================== CAMERA =====================
 void updateCameraDirection()
@@ -535,14 +582,199 @@ void drawLampGlow(float x, float z)
     glEnable(GL_LIGHTING);
 }
 
+// ===================== COLIZIUNI =====================
+bool collidesWithAnyBuilding(float objX, float objZ, float radius)
+{
+    for (int i = 0; i < buildingCount; i++) {
+        float minX = buildings[i].x - buildings[i].w * 0.5f - radius;
+        float maxX = buildings[i].x + buildings[i].w * 0.5f + radius;
+        float minZ = buildings[i].z - buildings[i].d * 0.5f - radius;
+        float maxZ = buildings[i].z + buildings[i].d * 0.5f + radius;
+
+        if (objX >= minX && objX <= maxX &&
+            objZ >= minZ && objZ <= maxZ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool collidesWithAutoCar(float objX, float objZ, float radius)
+{
+    float dx = objX - autoCarX;
+    float dz = objZ - autoCarZ;
+    float distSq = dx * dx + dz * dz;
+
+    float minDist = radius + autoCarRadius;
+    return distSq < (minDist * minDist);
+}
+
+bool collidesWithRedCar(float objX, float objZ, float radius)
+{
+    float dx = objX - car.x;
+    float dz = objZ - car.z;
+    float distSq = dx * dx + dz * dz;
+
+    float minDist = radius + car.radius;
+    return distSq < (minDist * minDist);
+}
+
+bool collidesWithBlueCar(float objX, float objZ, float radius)
+{
+    float dx = objX - autoCarX;
+    float dz = objZ - autoCarZ;
+    float distSq = dx * dx + dz * dz;
+
+    float minDist = radius + autoCarRadius;
+    return distSq < (minDist * minDist);
+}
+
+bool collidesWithAnyWalker(float objX, float objZ, float radius)
+{
+    for (int i = 0; i < walkerCount; i++) {
+        float dx = objX - walkers[i].x;
+        float dz = objZ - walkers[i].z;
+        float distSq = dx * dx + dz * dz;
+
+        float minDist = radius + walkerRadius;
+        if (distSq < minDist * minDist)
+            return true;
+    }
+
+    return false;
+}
+
+// ===================== MAȘINI =====================
+void drawCarModel(float x, float z, float angle, float bodyR, float bodyG, float bodyB)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y + 0.9f, z);
+    glRotatef(angle, 0.0f, 1.0f, 0.0f);
+
+    // corp inferior
+    glColor3f(bodyR, bodyG, bodyB);
+    glPushMatrix();
+    glScalef(3.6f, 1.0f, 2.0f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // cabină
+    glColor3f(
+        (bodyR + 0.15f > 1.0f ? 1.0f : bodyR + 0.15f),
+        (bodyG + 0.15f > 1.0f ? 1.0f : bodyG + 0.15f),
+        (bodyB + 0.15f > 1.0f ? 1.0f : bodyB + 0.15f)
+    );
+    glPushMatrix();
+    glTranslatef(0.0f, 0.75f, 0.0f);
+    glScalef(2.0f, 0.8f, 1.6f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // roți
+    glColor3f(0.08f, 0.08f, 0.08f);
+
+    glPushMatrix();
+    glTranslatef(-1.2f, -0.45f, 0.95f);
+    glRotatef(90.0f, 0, 1, 0);
+    glutSolidTorus(0.12, 0.28, 10, 16);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(1.2f, -0.45f, 0.95f);
+    glRotatef(90.0f, 0, 1, 0);
+    glutSolidTorus(0.12, 0.28, 10, 16);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(-1.2f, -0.45f, -0.95f);
+    glRotatef(90.0f, 0, 1, 0);
+    glutSolidTorus(0.12, 0.28, 10, 16);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(1.2f, -0.45f, -0.95f);
+    glRotatef(90.0f, 0, 1, 0);
+    glutSolidTorus(0.12, 0.28, 10, 16);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+void drawCar()
+{
+    drawCarModel(car.x, car.z, car.angle, 0.85f, 0.05f, 0.05f);
+}
+
+void drawAutoCar()
+{
+    drawCarModel(autoCarX, autoCarZ, autoCarAngle, 0.10f, 0.25f, 0.95f);
+}
+
+// ===================== PIETONI =====================
+void drawWalker(float x, float z, float angle)
+{
+    float y = terrainHeight(x, z);
+
+    glPushMatrix();
+    glTranslatef(x, y, z);
+    glRotatef(angle, 0.0f, 1.0f, 0.0f);
+
+    // corp
+    glColor3f(0.2f, 0.2f, 0.8f);
+    glPushMatrix();
+    glTranslatef(0.0f, 1.0f, 0.0f);
+    glScalef(0.8f, 1.6f, 0.5f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // cap
+    glColor3f(1.0f, 0.8f, 0.6f);
+    glPushMatrix();
+    glTranslatef(0.0f, 2.15f, 0.0f);
+    glutSolidSphere(0.35f, 12, 12);
+    glPopMatrix();
+
+    // picioare
+    glColor3f(0.15f, 0.15f, 0.15f);
+
+    glPushMatrix();
+    glTranslatef(-0.18f, 0.35f, 0.0f);
+    glScalef(0.18f, 0.7f, 0.18f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.18f, 0.35f, 0.0f);
+    glScalef(0.18f, 0.7f, 0.18f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+void drawWalkers()
+{
+    for (int i = 0; i < walkerCount; i++) {
+        drawWalker(walkers[i].x, walkers[i].z, walkers[i].angle);
+    }
+}
+
 // ===================== OBIECTE STATICE =====================
 void drawStaticObjects()
 {
-    // 4 clădiri
-    drawBuilding(-48.0f, 18.0f, 7.0f, 11.0f, 7.0f);
-    drawBuilding(-56.0f, 2.0f, 8.0f, 13.0f, 8.0f);
-    drawBuilding(48.0f, 16.0f, 7.0f, 10.0f, 7.0f);
-    drawBuilding(56.0f, 0.0f, 8.0f, 14.0f, 8.0f);
+    // clădiri
+    for (int i = 0; i < buildingCount; i++) {
+        drawBuilding(
+            buildings[i].x,
+            buildings[i].z,
+            buildings[i].w,
+            buildings[i].h,
+            buildings[i].d
+        );
+    }
 
     // 8 copaci
     drawTree(-70.0f, -10.0f);
@@ -665,6 +897,85 @@ void drawMultipleLampShadows()
     }
 }
 
+// ===================== UPDATE ANIMAȚII =====================
+void updateWalkers()
+{
+    for (int i = 0; i < walkerCount; i++) {
+        walkers[i].changeDirTimer += 1.0f;
+
+        if (walkers[i].changeDirTimer > 100.0f) {
+            walkers[i].angle = (float)(rand() % 360);
+            walkers[i].changeDirTimer = 0.0f;
+        }
+
+        float rad = walkers[i].angle * PI / 180.0f;
+        float dx = cosf(rad);
+        float dz = sinf(rad);
+
+        float newX = walkers[i].x + dx * walkers[i].speed;
+        float newZ = walkers[i].z + dz * walkers[i].speed;
+
+        bool hitBuilding = collidesWithAnyBuilding(newX, newZ, walkerRadius);
+        bool hitRedCar = collidesWithRedCar(newX, newZ, walkerRadius);
+        bool hitBlueCar = collidesWithBlueCar(newX, newZ, walkerRadius);
+
+        if (hitBuilding || hitRedCar || hitBlueCar) {
+            walkers[i].angle = (float)(rand() % 360);
+            continue;
+        }
+
+        if (newX < -85.0f || newX > 85.0f || newZ < -60.0f || newZ > 60.0f) {
+            walkers[i].angle = (float)(rand() % 360);
+            continue;
+        }
+
+        walkers[i].x = newX;
+        walkers[i].z = newZ;
+    }
+}
+void updateAutoCar()
+{
+    const float roadMidA = (36.0f + 26.0f) * 0.5f;
+    const float roadMidB = (24.0f + 16.0f) * 0.5f;
+    const float centerZ = -10.0f;
+
+    float nextT = autoCarT + 0.01f;
+    if (nextT > 2.0f * PI)
+        nextT -= 2.0f * PI;
+
+    float nextX = roadMidA * cosf(nextT);
+    float nextZ = centerZ + roadMidB * sinf(nextT);
+
+    bool hitRedCar = false;
+    {
+        float dx = nextX - car.x;
+        float dz = nextZ - car.z;
+        float distSq = dx * dx + dz * dz;
+        float minDist = autoCarRadius + car.radius;
+        hitRedCar = (distSq < minDist * minDist);
+    }
+
+    bool hitWalker = collidesWithAnyWalker(nextX, nextZ, autoCarRadius);
+
+    if (!hitRedCar && !hitWalker) {
+        autoCarT = nextT;
+        autoCarX = nextX;
+        autoCarZ = nextZ;
+    }
+
+    float tanX = -roadMidA * sinf(autoCarT);
+    float tanZ = roadMidB * cosf(autoCarT);
+
+    autoCarAngle = atan2f(-tanZ, tanX) * 180.0f / PI;
+}
+
+void idle()
+{
+    updateWalkers();
+    updateAutoCar();
+    glutPostRedisplay();
+}
+
 // ===================== RENDER =====================
 void display()
 {
@@ -691,6 +1002,18 @@ void display()
     drawRoad();
     drawStaticObjects();
 
+    // umbre obiecte mobile
+    drawSimpleShadowCircle(car.x, car.z, 2.0f, 0.22f);
+    drawSimpleShadowCircle(autoCarX, autoCarZ, 2.0f, 0.20f);
+
+    for (int i = 0; i < walkerCount; i++) {
+        drawSimpleShadowCircle(walkers[i].x, walkers[i].z, 0.8f, 0.16f);
+    }
+
+    drawWalkers();
+    drawAutoCar();
+    drawCar();
+
     glutSwapBuffers();
 }
 
@@ -709,13 +1032,43 @@ void reshape(int w, int h)
 
 // ===================== CONTROL =====================
 /*
+CAMERA
 W/S - înainte / înapoi
 A/D - stânga / dreapta
 Q/E - sus / jos
 J/L - rotație stânga / dreapta
 I/K - rotație sus / jos
+
+MAȘINĂ CONTROLABILĂ
+T/G - înainte / înapoi
+F/H - rotire stânga / dreapta
+
+ANIMAȚII
+Pietoni - mișcare aleatoare
+Mașina albastră - mișcare pe oval, după regulă prestabilită
+
 ESC - ieșire
 */
+void moveCar(float distance)
+{
+    float rad = car.angle * PI / 180.0f;
+
+    float moveX = cosf(rad);
+    float moveZ = -sinf(rad);
+
+    float newX = car.x + moveX * distance;
+    float newZ = car.z + moveZ * distance;
+
+    bool hitBuilding = collidesWithAnyBuilding(newX, newZ, car.radius);
+    bool hitBlueCar = collidesWithAutoCar(newX, newZ, car.radius);
+    bool hitWalker = collidesWithAnyWalker(newX, newZ, car.radius);
+
+    if (!hitBuilding && !hitBlueCar && !hitWalker) {
+        car.x = newX;
+        car.z = newZ;
+    }
+}
+
 void keyboard(unsigned char key, int, int)
 {
     updateCameraDirection();
@@ -790,6 +1143,28 @@ void keyboard(unsigned char key, int, int)
         pitch -= rotSpeed;
         if (pitch < -89.0f) pitch = -89.0f;
         break;
+
+    case 't':
+    case 'T':
+        moveCar(1.2f);
+        break;
+
+    case 'g':
+    case 'G':
+        moveCar(-1.2f);
+        break;
+
+    case 'f':
+    case 'F':
+        car.angle += 4.0f;
+        if (car.angle >= 360.0f) car.angle -= 360.0f;
+        break;
+
+    case 'h':
+    case 'H':
+        car.angle -= 4.0f;
+        if (car.angle < 0.0f) car.angle += 360.0f;
+        break;
     }
 
     glutPostRedisplay();
@@ -798,6 +1173,8 @@ void keyboard(unsigned char key, int, int)
 // ===================== INIT =====================
 void init()
 {
+    srand((unsigned int)time(0));
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_NORMALIZE);
 
@@ -823,6 +1200,8 @@ void init()
 
     setupFog();
     loadTextures();
+
+    updateAutoCar();
 }
 
 // ===================== MAIN =====================
@@ -838,6 +1217,7 @@ int main(int argc, char** argv)
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
+    glutIdleFunc(idle);
 
     glutMainLoop();
     return 0;
